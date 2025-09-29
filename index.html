@@ -1,0 +1,2249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRIS Dashboard - React App</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            background-color: #f3f4f6;
+        }
+        /* Custom CSS for Organizational Chart */
+        .org-chart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 10px;
+        }
+        .org-chart .level {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        .org-chart .node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            padding: 20px 20px 0 20px;
+        }
+        /* Connectors */
+        .org-chart .node::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 20px;
+            background: #cbd5e1; /* Gray line */
+        }
+        /* Hide top connector for the root node (level-1) */
+        .org-chart .level-1 .node::before {
+            content: none;
+        }
+
+        /* Horizontal Connector (Parent to Children) */
+        .org-chart .node.has-children {
+            padding-bottom: 30px; /* Space for the horizontal line */
+        }
+        .org-chart .node.has-children::after {
+            content: '';
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: #cbd5e1;
+        }
+        /* Line adjustment for multiple children */
+        .org-chart .level:not(:last-child) .node:first-child.has-children::after {
+             /* Start the line from the center of the first child */
+             width: 50%;
+             left: 50%;
+        }
+        .org-chart .level:not(:last-child) .node:last-child.has-children::after {
+             /* End the line in the center of the last child */
+             width: 50%;
+             left: 0;
+        }
+        .org-chart .level:not(:last-child) .node:only-child.has-children::after {
+             /* No horizontal line needed for a single child reporting */
+             content: none;
+        }
+        
+        /* The Card Styling */
+        .org-chart .card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 10px 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            width: 180px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border: 2px solid #ddd;
+        }
+        .org-chart .card img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-bottom: 5px;
+            border: 3px solid transparent;
+        }
+        .org-chart .card .name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1f2937;
+            margin-bottom: 2px;
+        }
+        .org-chart .card .position {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        /* Specific card colors for visual hierarchy (similar to image) */
+        .org-chart .level-1 .card { border-color: #ef4444; } /* Red for CEO */
+        .org-chart .level-2 .card:nth-child(1) { border-color: #fcd34d; } /* Yellow for L2-1 */
+        .org-chart .level-2 .card:nth-child(2) { border-color: #38bdf8; } /* Cyan/Blue for L2-2 */
+        .org-chart .level-2 .card:nth-child(3) { border-color: #c084fc; } /* Purple for L2-3 */
+        .org-chart .level-3 .card { border-color: #94a3b8; } /* Gray for L3 */
+
+        /* Responsive adjustments for connectors (simplified logic for nested flex/grid) */
+        @media (min-width: 1024px) {
+            .org-chart .node.has-children > .level {
+                margin-top: 30px;
+            }
+        }
+        /* Custom toggle switch styles for notifications tab */
+        .toggle-switch input:checked + .slider {
+            background-color: #8b5cf6;
+        }
+        .toggle-switch input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .toggle-switch .slider {
+            background-color: #ccc;
+            cursor: pointer;
+            transition: .4s;
+        }
+        .toggle-switch .slider:before {
+            background-color: white;
+            transition: .4s;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <!-- React application will be mounted here -->
+    </div>
+
+    <!-- Load React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Load Babel for JSX processing -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!--
+      NOTE: Lucide icons (Bell, Search, etc.) are used in the original JSX.
+      To make them work in this single-file environment without a build step,
+      we must manually define them as simple SVG components using React's element creation.
+    -->
+    <script type="text/babel">
+      // --- Lucide Icon Definitions (Simplified for CDN/Babel environment) ---
+      const IconWrapper = ({ children, size = 24, className = '', strokeWidth = 2, ...props }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+          {...props}
+        >
+          {children}
+        </svg>
+      );
+      
+      // --- NEW: CiDCore Logo SVG Component ---
+      const CidcoreLogo = ({ size = 24, color = '#fff', strokeWidth = 2, className = '' }) => (
+        <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width={size} 
+            height={size} 
+            viewBox="0 0 24 24" 
+            className={className}
+        >
+          <path fill="#2e2e2e" d="M0 0h24v24H0z"/>
+          {/* Main Heart Shape (Outline/White) */}
+          <path 
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+              fill="#fff" 
+              stroke="#fff" 
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+          />
+          {/* Inner Bar Chart (Maroon - Simulating the graph) */}
+          <rect x="10" y="10" width="1" height="4" fill="#a01438" transform="rotate(-3 10 10)"/>
+          <rect x="11.5" y="8" width="1" height="6" fill="#a01438" transform="rotate(-3 11.5 8)"/>
+          <rect x="13" y="11" width="1" height="3" fill="#a01438" transform="rotate(-3 13 11)"/>
+        </svg>
+      );
+
+      const Bell = (props) => (
+        <IconWrapper {...props}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></IconWrapper>
+      );
+      const Search = (props) => (
+        <IconWrapper {...props}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></IconWrapper>
+      );
+      const ChevronLeft = (props) => (
+        <IconWrapper {...props}><path d="m15 18-6-6 6-6" /></IconWrapper>
+      );
+      const ChevronRight = (props) => (
+        <IconWrapper {...props}><path d="m9 18 6-6-6-6" /></IconWrapper>
+      );
+      const ChevronDown = (props) => (
+        <IconWrapper {...props}><path d="m6 9 6 6 6-6" /></IconWrapper>
+      );
+      const AlignJustify = (props) => (
+        <IconWrapper {...props}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></IconWrapper>
+      );
+      const Home = (props) => (
+        <IconWrapper {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></IconWrapper>
+      );
+      const User = (props) => (
+        <IconWrapper {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></IconWrapper>
+      );
+      const Clock3 = (props) => (
+        <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></IconWrapper>
+      );
+      const List = (props) => (
+        <IconWrapper {...props}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></IconWrapper>
+      );
+      const BarChart2 = (props) => (
+        <IconWrapper {...props}><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></IconWrapper>
+      );
+      const GitPullRequest = (props) => (
+        <IconWrapper {...props}><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M13 6h3a2 2 0 0 1 2 2v7" /><path d="M6 9v12" /></IconWrapper>
+      );
+      const FileText = (props) => (
+        <IconWrapper {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><line x1="10" y1="9" x2="10" y2="15" /><line x1="14" y1="9" x2="14" y2="15" /></IconWrapper>
+      );
+      const Settings = (props) => (
+        <IconWrapper {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.09a2 2 0 0 0-2 1.73v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 0 0 3.46l.43.25a2 2 0 0 1 1 1.73v.18a2 2 0 0 0 2 1.73l.43.25a2 2 0 0 1 1 1.73v.18a2 2 0 0 0 2 1.73h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.09a2 2 0 0 0 2-1.73v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 0 0-3.46l-.43-.25a2 2 0 0 1-1-1.73v-.18a2 2 0 0 0-2-1.73l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></IconWrapper>
+      );
+      const LogOut = (props) => (
+        <IconWrapper {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></IconWrapper>
+      );
+      const MoreVertical = (props) => (
+        <IconWrapper {...props}><circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" /></IconWrapper>
+      );
+      const Wallet = (props) => (
+        <IconWrapper {...props}><path d="M18 7V3h-5L10 2 7 3H3v18h18V7h-3z" /><path d="M7 3v4" /><path d="M17 3v4" /><path d="M13 14h6" /><path d="M13 18h4" /><rect x="6" y="10" width="8" height="8" rx="1" /></IconWrapper>
+      );
+      const Calendar = (props) => (
+        <IconWrapper {...props}><path d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></IconWrapper>
+      );
+      const Clipboard = (props) => (
+        <IconWrapper {...props}><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M19 7v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7" /><path d="M15 13v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" /></IconWrapper>
+      );
+      const Users = (props) => (
+        <IconWrapper {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconWrapper>
+      );
+      const Clock = (props) => (
+        <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></IconWrapper>
+      );
+      const Briefcase = (props) => (
+        <IconWrapper {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></IconWrapper>
+      );
+      const FileUp = (props) => (
+        <IconWrapper {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M12 17V9" /><path d="m15 12-3-3-3 3" /></IconWrapper>
+      );
+      const UserPlus = (props) => (
+        <IconWrapper {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y2="11" x2="16" y2="11" /></IconWrapper>
+      );
+      const Mail = (props) => (
+        <IconWrapper {...props}><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.83 1.83 0 0 1-2.07 0L2 7" /></IconWrapper>
+      );
+      const Lock = (props) => (
+        <IconWrapper {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconWrapper>
+      );
+      const X = (props) => (
+        <IconWrapper {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></IconWrapper>
+      );
+      const ArrowRight = (props) => (
+        <IconWrapper {...props}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></IconWrapper>
+      );
+      const Users2 = (props) => (
+        <IconWrapper {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconWrapper>
+      );
+      const BarChart = (props) => (
+        <IconWrapper {...props}><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></IconWrapper>
+      );
+      // NEW ICONS for Settings Page
+      const Shield = (props) => (
+        <IconWrapper {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></IconWrapper>
+      );
+      const Database = (props) => (
+        <IconWrapper {...props}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M12 12c-4.97 0-9-1.34-9-3v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6c0 1.66-4.03 3-9 3z" /><path d="M12 19c-4.97 0-9-1.34-9-3v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6c0 1.66-4.03 3-9 3z" /></IconWrapper>
+      );
+
+
+      // --- Start of HRIS_Dashboard.jsx Content ---
+      const { useState, useEffect } = React;
+
+      // --- Configuration for Google Apps Script (Placeholder) ---
+      // *** IMPORTANT: PASTE YOUR DEPLOYED WEB APP URL HERE ***
+      const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6Q4S_iJIK7aKQQevtzgJ6b1q0CRmjD8kVgASB-fMhF_jsOd3qBnenuBVs-jTUUZAK/exec';
+
+      // --- Custom Hook for Google Sheet Persistence ---
+      const useGoogleSheet = (initialData, sheetName, url) => {
+          const [data, setData] = useState(initialData);
+          const [loading, setLoading] = useState(false);
+          const [error, setError] = useState(null);
+
+          // Headers to match the keys in the employee object
+          const HEADERS = [
+              'id', 'name', 'address', 'mobile', 'email', 'sss', 'tin', 'hdmf', 'philhealth',
+              'hireDate', 'position', 'department', 'type', 'status', 'reportsTo',
+              'emergencyContact.name', 'emergencyContact.address', 'emergencyContact.mobile',
+              'emergencyContact.email', 'emergencyContact.relation'
+          ];
+
+          // Function to flatten a complex object for Google Sheets
+          const flattenObject = (obj) => {
+              const flat = {};
+              for (const key of HEADERS) {
+                  if (key.includes('.')) {
+                      // Handle nested keys like 'emergencyContact.name'
+                      const parts = key.split('.');
+                      flat[key] = obj[parts[0]] ? obj[parts[0]][parts[1]] : '';
+                  } else {
+                      // Handle top-level keys
+                      flat[key] = obj[key] !== undefined ? obj[key] : '';
+                  }
+              }
+              return Object.values(flat);
+          };
+
+          // Function to unflatten array row back to object
+          const unflattenObject = (row) => {
+              const obj = {};
+              HEADERS.forEach((key, index) => {
+                  const value = row[index];
+                  if (key.includes('.')) {
+                      const [parent, child] = key.split('.');
+                      obj[parent] = obj[parent] || {};
+                      obj[parent][child] = value;
+                  } else {
+                      obj[key] = value;
+                  }
+              });
+              return obj;
+          };
+
+          // Function to fetch data from the Google Sheet
+          const fetchData = async () => {
+              if (url === 'https://script.google.com/macros/s/AKfycbx6Q4S_iJIK7aKQQevtzgJ6b1q0CRmjD8kVgASB-fMhF_jsOd3qBnenuBVs-jTUUZAK/exec' || !url) {
+                  console.warn("SCRIPT_URL is not set. Using local mock data.");
+                  return; // Use mock data if URL is not set
+              }
+              setLoading(true);
+              setError(null);
+              try {
+                  const response = await fetch(url, {
+                      method: 'POST',
+                      mode: 'no-cors', // Required for Google Scripts web app
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'read', sheetName }),
+                  });
+                  
+                  // NOTE: Due to 'no-cors', we cannot read the actual response content (JSON data).
+                  // In a production environment, you would need to proxy the request or set 
+                  // 'Access-Control-Allow-Origin' headers in the Google Script if deploying 
+                  // the front-end elsewhere.
+                  console.log("Attempted to fetch data. Check Google Script logs for sheet output.");
+                  
+                  // **Fallback**: Since we can't read the response from 'no-cors', we rely on 
+                  // the initialData and assume success for a seamless UI experience during development.
+                  // For a real integration, you would switch to Firebase or ensure CORS is handled.
+                  
+              } catch (err) {
+                  console.error("Error fetching data (expected in simple CORS environment):", err);
+                  setError("Failed to fetch from Google Script. Check URL and CORS settings.");
+              } finally {
+                  setLoading(false);
+              }
+          };
+
+          // Function to write data (Add Employee)
+          const writeData = async (newEmployee) => {
+              if (url === 'YOUR_DEPLOYED_WEB_APP_URL_HERE' || !url) {
+                  console.warn("SCRIPT_URL not set. Skipping sheet write.");
+                  setData(prev => [newEmployee, ...prev]); // Fallback to local state update
+                  return;
+              }
+              setLoading(true);
+              setError(null);
+              const rowData = flattenObject(newEmployee);
+              try {
+                  const response = await fetch(url, {
+                      method: 'POST',
+                      mode: 'no-cors', 
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                          action: 'write', 
+                          sheetName,
+                          headers: HEADERS,
+                          data: rowData
+                      }),
+                  });
+                  // Optimistic update for seamless UI
+                  setData(prev => [newEmployee, ...prev]);
+
+              } catch (err) {
+                  console.error("Error writing data (expected in simple CORS environment):", err);
+                  setError("Failed to write to Google Script.");
+              } finally {
+                  setLoading(false);
+              }
+          };
+
+          // useEffect(() => {
+          //     // Simulate initial data load
+          //     fetchData();
+          // }, [url, sheetName]);
+
+          // Return the current data, loading status, and write function
+          return { data, loading, error, writeData, fetchData };
+      };
+
+
+      // --- Global Data Source for Calendar and Schedule ---
+      const SCHEDULE_EVENTS = [
+        // Using current year/month for better calendar rendering in the preview
+        { date: '2025-09-28', title: 'Weekend - Rest', icon: Clock, color: '#9ca3af', time: 'All Day' },
+        { date: '2025-09-29', title: 'Weekend - Rest', icon: Clock, color: '#9ca3af', time: 'All Day' },
+        { date: '2025-09-27', title: 'Team Review', icon: List, color: '#f59e0b', time: '11:00 AM' },
+
+        { date: '2025-10-06', title: 'Project Kickoff', icon: GitPullRequest, color: '#059669', time: '09:00 AM' },
+        { date: '2025-10-14', title: 'Training Session', icon: Users, color: '#3b82f6', time: '01:00 PM' },
+        { date: '2025-10-25', title: 'Q4 Planning', icon: BarChart2, color: '#fbbf24', time: '10:00 AM' },
+        { date: '2025-10-31', title: 'Annual Holiday', icon: Briefcase, color: '#ef4444', time: 'All Day' },
+      ];
+
+
+      // --- Component Definitions ---
+
+      // Login Page Component
+      const LoginPage = ({ onLogin }) => {
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+
+        const handleLoginSubmit = (e) => {
+          e.preventDefault();
+          // Simulate successful login
+          console.log(`Attempting login for: ${email}`);
+          onLogin();
+        };
+
+        return (
+          <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-8">
+              {/* Header */}
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-600 rounded-xl mx-auto flex items-center justify-center mb-4">
+                  {/* UPDATED: Replaced generic icon with new CiDCore logo */}
+                  <CidcoreLogo size={32} color="#fff" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
+                <p className="mt-2 text-gray-500">Sign in to access your CiDCore dashboard</p>
+              </div>
+
+              {/* Form */}
+              <form className="space-y-6" onSubmit={handleLoginSubmit}>
+                {/* Email Input */}
+                <div>
+                  <label htmlFor="email" className="sr-only">Email address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Email address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div>
+                  <label htmlFor="password" className="sr-only">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Remember Me & Forgot Password */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center">
+                    <input
+                      id="remember-me"
+                      name="remember-me"
+                      type="checkbox"
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="remember-me" className="ml-2 text-gray-900">Remember me</label>
+                  </div>
+                  <a href="#" className="font-medium text-purple-600 hover:text-purple-500">
+                    Forgot your password?
+                  </a>
+                </div>
+
+                {/* Submit Button */}
+                <div>
+                  <button
+                    type="submit"
+                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-lg font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all"
+                  >
+                    Login
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      };
+
+      // Sidebar component
+      const Sidebar = ({ isOpen, onClose, currentPage, setCurrentPage }) => {
+        // State for managing collapsed/expanded view on larger screens
+        const [isCollapsed, setIsCollapsed] = useState(true);
+        
+        // Use media query listener to ensure sidebar is always open on small screens if triggered by menu button
+        const isLgScreen = window.innerWidth >= 1024;
+        const widthClass = isCollapsed && isLgScreen ? 'w-20' : 'w-64';
+        const paddingClass = isCollapsed && isLgScreen ? 'p-4' : 'p-6';
+        const isMenuVisible = !isCollapsed || !isLgScreen;
+        const textVisibilityClass = isCollapsed && isLgScreen ? 'opacity-0 absolute w-0 overflow-hidden' : 'opacity-100';
+
+        const menuItems = [
+          { name: 'Dashboard', icon: Home, page: 'dashboard' },
+          { name: 'Employee', icon: User, page: 'employee' },
+          { name: 'Time Attendance', icon: Clock3, page: 'time-attendance' },
+          { name: 'Task', icon: List, page: 'task' },
+          { name: 'Payroll', icon: Wallet, page: 'payroll' },
+          { name: 'Performance', icon: BarChart2, page: 'performance' },
+          
+          /* REMOVED: Recruitment
+          { name: 'Recruitment', icon: GitPullRequest, page: 'recruitment' },
+          */
+          
+          { name: 'Report', icon: FileText, page: 'report' },
+          { name: 'Organization', icon: MoreVertical, page: 'organization' },
+        ];
+
+        const profileItems = [
+          /* REMOVED: Profile
+          { name: 'Profile', icon: User, page: 'profile' },
+          */
+          { name: 'Setting', icon: Settings, page: 'settings' },
+          { name: 'Logout', icon: LogOut, page: 'logout' },
+        ];
+
+        return (
+          <React.Fragment>
+            {/* Mobile Backdrop */}
+            {isOpen && (
+              <div
+                className="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 lg:hidden"
+                onClick={onClose}
+              ></div>
+            )}
+            {/* Sidebar */}
+            <div
+              className={`fixed lg:relative top-0 left-0 h-full ${widthClass} bg-white ${paddingClass} flex-col justify-between transition-all duration-300 ease-in-out z-30 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                } lg:flex lg:flex-shrink-0 shadow-xl`}
+              onMouseEnter={() => isLgScreen && setIsCollapsed(false)}
+              onMouseLeave={() => isLgScreen && setIsCollapsed(true)}
+            >
+              <div>
+                <div className={`flex items-center ${isCollapsed && isLgScreen ? 'justify-center' : 'space-x-2'} mb-8 h-10`}>
+                  <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <CidcoreLogo size={24} color="#fff" />
+                  </div>
+                  <span className={`text-xl font-bold text-gray-800 whitespace-nowrap ${textVisibilityClass} transition-opacity duration-300`}>CiDCore</span>
+                </div>
+                {/* UPDATED: Changed vertical spacing from space-y-2 to space-y-3 */}
+                <ul className="space-y-3">
+                  {menuItems.map((item) => (
+                    <li key={item.page} className="relative group">
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(item.page);
+                          onClose();
+                        }}
+                        // Added padding-y to the anchor tag for more space when collapsed
+                        className={`flex items-center ${isCollapsed && isLgScreen ? 'justify-center w-full py-3' : 'p-3'} rounded-xl text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors duration-200 ${currentPage === item.page ? 'bg-purple-100 text-purple-700 font-semibold' : ''}`}
+                      >
+                        <item.icon className={`h-5 w-5 ${isMenuVisible ? 'mr-3' : ''} flex-shrink-0`} />
+                        <span className={`whitespace-nowrap ${textVisibilityClass} transition-opacity duration-300 flex-1`}>{item.name}</span>
+                        {item.name === 'Task' && isMenuVisible && (
+                          <span className={`ml-auto bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full ${textVisibilityClass}`}>
+                            9
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div className="w-full h-px bg-gray-200 my-6"></div>
+                {/* UPDATED: Changed vertical spacing from space-y-2 to space-y-3 */}
+                <ul className="space-y-3">
+                  {profileItems.map((item) => (
+                    <li key={item.page}>
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(item.page);
+                          onClose();
+                        }}
+                        // Added padding-y to the anchor tag for more space when collapsed
+                        className={`flex items-center ${isCollapsed && isLgScreen ? 'justify-center w-full py-3' : 'p-3'} rounded-xl text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors duration-200 ${currentPage === item.page ? 'bg-purple-100 text-purple-700 font-semibold' : ''}`}
+                      >
+                        <item.icon className={`h-5 w-5 ${isMenuVisible ? 'mr-3' : ''} flex-shrink-0`} />
+                        <span className={`whitespace-nowrap ${textVisibilityClass} transition-opacity duration-300`}>{item.name}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      };
+
+      // Header component
+      const Header = ({ onMenuClick }) => (
+        <header className="sticky top-0 bg-gray-50 bg-opacity-90 backdrop-filter backdrop-blur-sm z-10 p-4 rounded-b-xl shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center w-full max-w-lg">
+              <button onClick={onMenuClick} className="lg:hidden p-2 mr-2 rounded-lg text-gray-600 hover:bg-gray-200 transition-colors">
+                <AlignJustify size={24} />
+              </button>
+              {/* REMOVED: Search bar container */}
+              {/* <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Looking for something?"
+                  className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:border-purple-300 transition-all"
+                />
+              </div> */}
+              {/* Add spacing if search bar is removed and onMenuClick is hidden on large screens */}
+              <div className="w-1/2 hidden lg:block"></div>
+            </div>
+            <div className="flex items-center space-x-4 ml-auto">
+              {/* REMOVED: Bell icon */}
+              {/* <Bell className="text-gray-500 hover:text-purple-600 transition-colors cursor-pointer" size={24} /> */}
+              <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+              <div className="flex items-center space-x-2 cursor-pointer">
+                <img
+                  src="https://placehold.co/40x40/6a0dad/ffffff?text=P"
+                  alt="Profile"
+                  className="w-8 h-8 rounded-full object-cover border-2 border-purple-300"
+                />
+                <span className="hidden sm:inline text-sm font-medium text-gray-700">Profile</span>
+                <ChevronDown size={16} className="text-gray-400 hidden sm:inline" />
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+
+      // Welcome Card component
+      const WelcomeCard = () => (
+        <div className="relative bg-purple-600 text-white rounded-2xl p-6 lg:p-8 flex flex-col md:flex-row items-center justify-between overflow-hidden shadow-lg">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-purple-700 to-purple-500 opacity-20"></div>
+          <div className="relative z-10 mb-4 md:mb-0">
+            <h2 className="text-2xl lg:text-3xl font-bold mb-2">Welcome, Arabella Chloe!</h2>
+            <p className="text-sm lg:text-base">You have 5 Pending tasks, let's see what you can do today!</p>
+            <button className="mt-4 px-6 py-2 bg-white text-purple-600 font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]">
+              Check Now
+            </button>
+          </div>
+          <div className="relative z-10 w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
+            <img
+              src="https://placehold.co/128x128/fff/6a0dad?text=A.C."
+              alt="Arabella Chloe"
+              className="w-full h-full object-cover rounded-full border-4 border-purple-400 shadow-xl"
+            />
+          </div>
+        </div>
+      );
+
+      // Stats Card component (Reused for Dashboard and Time/Attendance)
+      // UPDATED: Now uses dynamic text/icon color based on background luminance
+      const StatsCard = ({ title, value, icon: Icon, bgColor, iconColor }) => {
+          // Determine if the background color is bright (using a simple check for light colors)
+          // We consider colors like #FFFF00 and #1FFFF0 to be bright enough to need dark text/icons.
+          const isBright = ['#FFFF00', '#1FFFF0'].includes(bgColor.toUpperCase());
+          const textColor = isBright ? '#1f2937' : '#FFFFFF'; // Dark gray or White
+          const cardIconColor = isBright ? '#1f2937' : '#FFFFFF';
+
+          return (
+            <div className="rounded-2xl p-5 flex items-start space-x-4 shadow-sm hover:shadow-lg transition-shadow border border-gray-100" style={{backgroundColor: bgColor}}>
+              <div className="p-3 rounded-xl flex-shrink-0" style={{backgroundColor: cardIconColor + '30'}}>
+                <Icon size={24} style={{color: cardIconColor, strokeWidth: 3}} /> {/* Increased strokeWidth for visibility */}
+              </div>
+              <div>
+                <h3 className="text-sm font-medium mb-1" style={{color: textColor}}>{title}</h3>
+                <p className="text-2xl font-bold" style={{color: textColor}}>{value}</p>
+              </div>
+            </div>
+          );
+      };
+
+      // Task Statistic component (placeholder)
+      const TaskStatistic = () => {
+        const chartData = [
+          { color: '#ef4444', value: 20, label: 'Rejected' },
+          { color: '#f59e0b', value: 10, label: 'On Hold' },
+          { color: '#8b5cf6', value: 70, label: 'Completed' },
+          { color: '#3b82f6', value: 50, label: 'In Progress' },
+        ];
+
+        const circumference = 2 * Math.PI * 60;
+        const strokeDashoffset = (100 - 70) / 100 * circumference;
+
+        return (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Task Statistic</h3>
+              <MoreVertical className="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" size={20} />
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center">
+              <div className="relative w-32 h-32 md:w-40 md:h-40">
+                <svg className="w-full h-full transform -rotate-90">
+                  {/* Background Circle (Grey) - Adjusted cx/cy for size 40x40 container */}
+                  <circle className="text-gray-200" strokeWidth="12" stroke="currentColor" fill="transparent" r="60" cx="80" cy="80" />
+                  {/* Foreground Circle (Purple - 70% filled) */}
+                  <circle
+                    className="text-purple-600"
+                    strokeWidth="12"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="60"
+                    cx="80"
+                    cy="80"
+                  />
+                </svg>
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl font-bold text-gray-800">70%</span>
+              </div>
+              <ul className="mt-4 sm:mt-0 sm:ml-8 space-y-2 text-sm">
+                {chartData.map((item, index) => (
+                  <li key={index} className="flex items-center">
+                    <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: item.color }}></span>
+                    <span className="text-gray-600">{item.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        );
+      };
+
+      // Star Employee component (placeholder)
+      const StarEmployee = () => {
+        const employees = [
+          { name: 'John Doe', title: 'Marcomm Senior Officer', tasks: 50, imageUrl: 'https://placehold.co/40x40/ffc83c/000?text=JD' },
+          { name: 'Arabella Chloe', title: 'UI / UX Designer', tasks: 42, imageUrl: 'https://placehold.co/40x40/d1d1d1/000?text=AC' },
+          { name: 'Ryan Kim', title: 'Project Manager', tasks: 38, imageUrl: 'https://placehold.co/40x40/f06292/000?text=RK' },
+        ];
+        return (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Star Employee</h3>
+              <MoreVertical className="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" size={20} />
+            </div>
+            <ul className="space-y-4">
+              {employees.map((employee, index) => (
+                <li key={index} className="flex items-start space-x-4 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                  <img src={employee.imageUrl} alt={employee.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{employee.name}</p>
+                    <p className="text-sm text-gray-500">{employee.title}</p>
+                    <p className="text-xs text-gray-400">{employee.tasks} Tasks finished this month</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      };
+
+      // Calendar component with events integrated
+      const CalendarWidget = () => {
+        const [currentDate, setCurrentDate] = useState(new Date());
+        const [selectedDate, setSelectedDate] = useState(new Date().getDate());
+
+        // Array of all schedule data to display on the calendar
+        const allEvents = SCHEDULE_EVENTS;
+
+        // Utility to format date to YYYY-MM-DD for easy lookup
+        const formatDate = (year, month, day) => {
+            return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        };
+
+        const daysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+
+        // Custom calculation to make the week start on Monday (Mon=0, Tue=1, ... Sun=6)
+        const getFirstDayOfMonthShifted = (date) => {
+            const dayIndex = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+            return (dayIndex + 6) % 7;
+        };
+
+        const totalDays = daysInMonth(currentDate);
+        const firstDayShifted = getFirstDayOfMonthShifted(currentDate);
+        // M T W T F S S
+        const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+        // Create an array for the calendar grid: null for leading blanks, then dates
+        const daysArray = [...Array(firstDayShifted).fill(null), ...Array(totalDays).fill(null).map((_, i) => i + 1)];
+
+        const handlePrevMonth = () => {
+          setCurrentDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() - 1, 1));
+          setSelectedDate(null);
+        };
+
+        const handleNextMonth = () => {
+          setCurrentDate(prevDate => new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 1));
+          setSelectedDate(null);
+        };
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        return (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
+              <div className="flex items-center space-x-2">
+                <ChevronLeft onClick={handlePrevMonth} className="text-gray-400 hover:text-purple-600 transition-colors cursor-pointer" size={20} />
+                <ChevronRight onClick={handleNextMonth} className="text-gray-400 hover:text-purple-600 transition-colors cursor-pointer" size={20} />
+              </div>
+            </div>
+
+            {/* Day Names Grid */}
+            <div className="grid grid-cols-7 border-t border-l border-r border-gray-200 text-center text-sm font-medium">
+              {dayNames.map((day, index) => (
+                <div key={index} className="p-2 text-gray-500 border-b border-r border-gray-200 last:border-r-0" style={{backgroundColor: index >= 5 ? '#f9f9f9' : 'white'}}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Date Grid */}
+            <div className="grid grid-cols-7 border-l border-r border-b border-gray-200 text-center text-sm">
+              {daysArray.map((date, index) => {
+                const isToday = date === new Date().getDate() && currentDate.getMonth() === new Date().getMonth() && currentDate.getFullYear() === new Date().getFullYear();
+                
+                // Determine if this day is a weekend (0 = Monday, 6 = Sunday)
+                const dayOfWeek = index % 7;
+                const isWeekend = dayOfWeek >= 5;
+
+                const dateKey = date ? formatDate(currentDate.getFullYear(), currentDate.getMonth(), date) : null;
+                const eventsOnDay = date ? allEvents.filter(e => e.date === dateKey) : [];
+
+                return (
+                  <div
+                    key={index}
+                    onClick={() => date && setSelectedDate(date)}
+                    title={eventsOnDay.map(e => e.title).join(', ') || ''}
+                    className={`
+                      h-20 p-1 flex flex-col items-center justify-between text-xs transition-colors cursor-pointer
+                      border-b border-r border-gray-200
+                      ${!date ? 'bg-gray-50 text-gray-300 pointer-events-none' : ''}
+                      ${isWeekend && date ? 'bg-gray-50' : 'bg-white'}
+                      ${isToday ? 'bg-purple-100 border-purple-400 font-semibold' : 'hover:bg-purple-50'}
+                    `}
+                    style={{
+                        borderBottomWidth: index >= daysArray.length - 7 ? '0' : '1px',
+                        borderRightWidth: dayOfWeek === 6 ? '0' : '1px'
+                    }}
+                  >
+                    {/* Date Number */}
+                    <div className={`p-1 w-6 h-6 rounded-full flex items-center justify-center ${isToday ? 'bg-purple-600 text-white' : 'text-gray-800'}`}>
+                      {date}
+                    </div>
+
+                    {/* Events (up to 2 icons) */}
+                    <div className="flex justify-center flex-wrap mt-1 space-x-1">
+                      {eventsOnDay.slice(0, 2).map((event, eventIndex) => (
+                        <span key={eventIndex} title={event.title}>
+                          <event.icon size={12} style={{ color: event.color }} />
+                        </span>
+                      ))}
+                      {eventsOnDay.length > 2 && (
+                          <span className="text-gray-400 text-[10px]" title={`+${eventsOnDay.length - 2} more events`}>...</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-center mt-4 text-purple-600 text-sm font-medium cursor-pointer hover:underline">
+              <Calendar size={16} className="mr-2" />
+              <span>Add New Event</span>
+            </div>
+          </div>
+        );
+      };
+
+
+      // Schedule Section component (updated to use global data)
+      const ScheduleSection = () => {
+        // Filter events for the upcoming 30 days starting today
+        const today = new Date();
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+        const filteredSchedules = SCHEDULE_EVENTS.filter(schedule => {
+            const eventDate = new Date(schedule.date);
+            // Check if the event is within the next 30 days
+            return eventDate >= today && eventDate <= thirtyDaysFromNow;
+        }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+
+        const formatDisplayDate = (dateString) => {
+            const date = new Date(dateString);
+            return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+        };
+
+        return (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h3 className="font-semibold text-gray-800 mb-4">Upcoming Schedule & Holidays</h3>
+            {filteredSchedules.map((schedule, index) => (
+              <div key={index} className="flex items-start space-x-3 mb-4 p-2 -mx-2 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex-shrink-0 p-2 rounded-xl" style={{ backgroundColor: `${schedule.color}1A` }}>
+                  <schedule.icon size={20} style={{ color: schedule.color }} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800 text-sm">{schedule.title}</p>
+                  <p className="text-xs text-gray-500 mt-1">{formatDisplayDate(schedule.date)}</p>
+                </div>
+                <p className="text-xs text-gray-400 flex-shrink-0 pt-1">{schedule.time}</p>
+              </div>
+            ))}
+          </div>
+        );
+      };
+
+      // Birthday Section component (placeholder)
+      const BirthdaySection = () => {
+        const birthdays = [
+          { name: 'Dessy Path', title: 'Finance Specialist', date: '10/04' },
+          { name: 'Anastasia Dee', title: 'Graphic Designer', date: '15/04' },
+          { name: 'Arabella Chloe', title: 'UI / UX Designer', date: '22/04' },
+        ];
+        return (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800">Birthdays</h3>
+              <div className="flex items-center space-x-2 text-sm text-gray-500 cursor-pointer hover:text-purple-600">
+                <span className="hidden md:inline">This Month</span>
+                <ChevronDown size={16} />
+              </div>
+            </div>
+            {birthdays.map((bday, index) => (
+              <div key={index} className="flex items-center space-x-4 mb-4 p-2 -mx-2 rounded-lg hover:bg-gray-50 transition-colors">
+                <img src={`https://placehold.co/40x40/ddd/000?text=${bday.name.split(' ').map(n => n[0]).join('')}`} alt={bday.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800">{bday.name}</p>
+                  <p className="text-sm text-gray-500">{bday.title}</p>
+                </div>
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  <span className="text-sm text-gray-500">{bday.date}</span>
+                  <button className="text-xs font-semibold text-purple-600 bg-purple-100 rounded-full px-3 py-1 hover:bg-purple-200 transition-colors shadow-sm">
+                    Send Gift
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      };
+
+      // Component for the Dashboard page
+      const DashboardContent = ({ onMenuClick }) => {
+          // Define custom colors for the Stat Cards
+          const colors = {
+              // Updated iconColor/textColor is now handled dynamically in StatsCard logic for better contrast
+              totalEmployee: { bg: '#1FFFF0' }, 
+              present: { bg: '#1F9EFF' }, 
+              late: { bg: '#FFFF00' }, 
+              annualLeave: { bg: '#FF00FF' }, 
+          };
+
+          return (
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+              <Header onMenuClick={onMenuClick} />
+              <div className="mt-6 space-y-6">
+                <WelcomeCard />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Passing only the required background color */}
+                  <StatsCard title="Total Employee" value="350" icon={Users} bgColor={colors.totalEmployee.bg} />
+                  <StatsCard title="Present" value="390" icon={Users} bgColor={colors.present.bg} />
+                  <StatsCard title="Late" value="40" icon={Clock} bgColor={colors.late.bg} />
+                  <StatsCard title="Annual Leave" value="50" icon={Briefcase} bgColor={colors.annualLeave.bg} />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="col-span-1 lg:col-span-2 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <TaskStatistic />
+                      <StarEmployee />
+                    </div>
+                    {/* Placeholder for Project Status Table */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 min-h-[300px]">
+                      <h3 className="text-lg font-semibold text-gray-800">Project Status Table</h3>
+                      <p className="text-gray-500 mt-2">This space is reserved for a main data table or chart.</p>
+                    </div>
+                  </div>
+                  <div className="col-span-1 space-y-6">
+                    <CalendarWidget />
+                    <ScheduleSection />
+                    <BirthdaySection />
+                  </div>
+                </div>
+              </div>
+            </main>
+          );
+      };
+
+      // Individual Time Attendance Stat Card
+      const TimeStatCard = ({ title, value, unit, icon: Icon, colorClass }) => (
+        <div className="bg-white rounded-2xl p-5 shadow-md border-l-4" style={{ borderColor: colorClass }}>
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm font-medium text-gray-500">{title}</p>
+                    <p className="text-3xl font-bold text-gray-800 mt-1">
+                        {value}
+                        <span className="text-lg font-normal text-gray-500 ml-1">{unit}</span>
+                    </p>
+                </div>
+                <Icon size={32} className={`text-4xl opacity-50`} style={{ color: colorClass }} />
+            </div>
+        </div>
+      );
+
+      // Main Time Attendance Component
+      const TimeAttendanceContent = ({ onMenuClick }) => {
+        const [isClockedIn, setIsClockedIn] = useState(false);
+        const [currentTime, setCurrentTime] = useState(new Date());
+
+        useEffect(() => {
+          const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+          return () => clearInterval(timer);
+        }, []);
+
+        const handlePunch = () => {
+          setIsClockedIn(prev => !prev);
+          // In a real app, you would send clock-in/out data to the backend here.
+          console.log(isClockedIn ? 'Clocked OUT' : 'Clocked IN');
+        };
+
+        const recentActivities = [
+          { time: '05:00 PM', date: 'Oct 15, 2024', type: 'Clock Out', status: 'On Time', color: '#ef4444' },
+          { time: '08:00 AM', date: 'Oct 15, 2024', type: 'Clock In', status: 'On Time', color: '#10b981' },
+          { time: '05:15 PM', date: 'Oct 14, 2024', type: 'Clock Out', status: 'Late', color: '#f59e0b' },
+          { time: '08:30 AM', date: 'Oct 14, 2024', type: 'Clock In', status: 'Late', color: '#f59e0b' },
+          { time: '05:00 PM', date: 'Oct 13, 2024', type: 'Clock Out', status: 'On Time', color: '#ef4444' },
+          { time: '08:00 AM', date: 'Oct 13, 2024', type: 'Clock In', status: 'On Time', color: '#10b981' },
+        ];
+
+        return (
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+            <Header onMenuClick={onMenuClick} />
+            <h1 className="text-3xl font-bold text-gray-800 mt-6 mb-6">Time & Attendance Management</h1>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column (Punch Clock and Stats) - 2/3 width on desktop */}
+              <div className="lg:col-span-2 space-y-6">
+
+                {/* Punch Clock Card */}
+                <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 flex flex-col md:flex-row items-center justify-between">
+                  <div className="text-center md:text-left mb-6 md:mb-0">
+                    <h2 className="text-4xl font-extrabold text-purple-600 mb-2">{currentTime.toLocaleTimeString()}</h2>
+                    <p className="text-lg text-gray-600 font-medium">{currentTime.toDateString()}</p>
+                    <p className={`mt-2 text-sm font-semibold rounded-full px-3 py-1 inline-block ${isClockedIn ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {isClockedIn ? 'Working Now' : 'Clocked Out'}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handlePunch}
+                    className={`px-8 py-3 w-full md:w-auto text-lg font-bold rounded-xl shadow-lg transition-all duration-300 transform hover:scale-[1.03] ${
+                      isClockedIn
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-green-500 text-white hover:bg-green-600'
+                    }`}
+                  >
+                    {isClockedIn ? 'PUNCH OUT' : 'PUNCH IN'}
+                  </button>
+                </div>
+
+                {/* Summary Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <TimeStatCard title="Hours Today" value="08.0" unit="hrs" icon={Clock} colorClass="#8b5cf6" />
+                  <TimeStatCard title="Hours This Week" value="40.0" unit="hrs" icon={Clock3} colorClass="#3b82f6" />
+                  <TimeStatCard title="Days Absent" value="0.0" unit="days" icon={Calendar} colorClass="#ef4444" />
+                  <TimeStatCard title="Vacation Days Left" value="15" unit="days" icon={Briefcase} colorClass="#10b981" />
+                </div>
+
+                {/* Recent Activity Log */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800">Recent Attendance Activity</h3>
+                      <a href="#" className="text-sm text-purple-600 hover:text-purple-800 flex items-center">
+                          View All <ArrowRight size={16} className="ml-1" />
+                      </a>
+                  </div>
+                  <ul className="space-y-4">
+                      {recentActivities.map((activity, index) => (
+                          <li key={index} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                              <div className="flex items-center space-x-3">
+                                  <div className="p-2 rounded-full" style={{ backgroundColor: `${activity.color}20` }}>
+                                      <Clock size={16} style={{ color: activity.color }} />
+                                  </div>
+                                  <div>
+                                      <p className="font-semibold text-gray-800 text-sm">{activity.type}</p>
+                                      <p className="text-xs text-gray-500">{activity.date}</p>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <p className="font-bold text-sm text-gray-700">{activity.time}</p>
+                                  <p className="text-xs font-semibold" style={{ color: activity.color }}>{activity.status}</p>
+                              </div>
+                          </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+
+
+              {/* Right Column (Calendar/Schedule) - 1/3 width on desktop */}
+              <div className="lg:col-span-1 space-y-6">
+                  <CalendarWidget />
+                  <ScheduleSection />
+              </div>
+            </div>
+          </main>
+        );
+      };
+
+      // Employee Card Component (UPDATED FOR GRID LAYOUT)
+      const EmployeeCard = ({ employee }) => {
+        const getStatusClasses = (status) => {
+          switch (status) {
+            case 'NLE':
+              return 'bg-red-600 text-white';
+            case 'On Leave':
+              return 'bg-amber-500 text-white';
+            case 'Active':
+              return 'bg-emerald-300 text-gray-800';
+            case 'Probationary':
+            default:
+              return 'bg-pink-400 text-white';
+          }
+        };
+
+        const nameParts = employee.name ? employee.name.split(' ') : ['?'];
+        const initials = nameParts.length > 1 ? `${nameParts[0][0]}${nameParts[1][0]}` : nameParts[0][0];
+
+        return (
+          // Adjusted styling for a more compact card suitable for a grid.
+          // Removed original complex flex layout and switched to a simpler stack.
+          <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-shadow border border-gray-100 flex flex-col items-center text-center space-y-4 h-full">
+            <img
+              src={`https://placehold.co/80x80/d1d1d1/000?text=${initials}`}
+              alt={employee.name}
+              className="w-20 h-20 rounded-full object-cover flex-shrink-0 border-2 border-purple-300"
+            />
+            <div className="flex-1 w-full space-y-1">
+              <h3 className="text-lg font-bold text-gray-900">{employee.name}</h3>
+              <p className="text-sm text-gray-600 font-medium">{employee.position}</p>
+              <p className="text-xs text-gray-500">{employee.department}</p>
+              <p className="text-xs text-gray-500">ID: {employee.id}</p>
+            </div>
+            
+            <div className="w-full pt-3 border-t border-gray-100">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusClasses(employee.status)}`}>
+                  {employee.status}
+                </span>
+                <p className="text-xs text-gray-400 mt-2">Hire: {employee.hireDate}</p>
+            </div>
+          </div>
+        );
+      };
+
+      // Add Employee Modal Component (remains unchanged)
+      const AddEmployeeModal = ({ isOpen, onClose, onAddEmployee }) => {
+        // Initial state for form data
+        const [formData, setFormData] = useState({
+          id: `EMP${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+          name: '',
+          address: '',
+          mobile: '',
+          email: '',
+          sss: '',
+          tin: '',
+          hdmf: '',
+          philhealth: '',
+          hireDate: '',
+          position: '',
+          department: '',
+          type: 'Full-time',
+          status: 'Active',
+          reportsTo: '',
+          emergencyContact: {
+            name: '',
+            address: '',
+            mobile: '',
+            email: '',
+            relation: '',
+          },
+        });
+
+        // Handle input changes, supporting nested emergencyContact fields
+        const handleChange = (e) => {
+          const { name, value } = e.target;
+          if (name.includes('emergencyContact.')) {
+            const contactField = name.split('.')[1];
+            setFormData(prev => ({
+              ...prev,
+              emergencyContact: {
+                ...prev.emergencyContact,
+                [contactField]: value,
+              },
+            }));
+          } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+          }
+        };
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          // Validate required fields before proceeding (simplified)
+          if (!formData.name || !formData.position || !formData.hireDate) {
+              console.error("Missing required fields!");
+              return;
+          }
+
+          onAddEmployee(formData);
+          onClose();
+          // Reset form data and regenerate a new ID
+          setFormData({
+              id: `EMP${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+              name: '',
+              address: '',
+              mobile: '',
+              email: '',
+              sss: '',
+              tin: '',
+              hdmf: '',
+              philhealth: '',
+              hireDate: '',
+              position: '',
+              department: '',
+              type: 'Full-time',
+              status: 'Active',
+              reportsTo: '',
+              emergencyContact: {
+                  name: '',
+                  address: '',
+                  mobile: '',
+                  email: '',
+                  relation: '',
+              },
+          });
+        };
+
+        if (!isOpen) return null;
+
+        // A utility function to render form groups easily
+        const renderInput = (label, name, type = 'text', value) => (
+            <div>
+                <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
+                    {label}
+                </label>
+                <input
+                    type={type}
+                    name={name}
+                    id={name}
+                    required={name !== 'reportsTo' && !name.includes('emergencyContact')} // Basic required logic
+                    value={value}
+                    onChange={handleChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-xl shadow-sm p-3 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                />
+            </div>
+        );
+
+        return (
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                            <UserPlus size={24} className="mr-3 text-purple-600" />
+                            Add New Employee
+                        </h3>
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    {/* Modal Body - Form */}
+                    <form onSubmit={handleSubmit}>
+                        <div className="p-6 space-y-8">
+                            {/* Section 1: Personal Information */}
+                            <section>
+                                <h4 className="text-lg font-semibold text-purple-600 mb-4 border-b pb-2">1. Personal Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                                        <input
+                                            type="text"
+                                            value={formData.id}
+                                            readOnly
+                                            className="mt-1 block w-full border border-gray-200 bg-gray-50 rounded-xl shadow-inner p-3 text-gray-500"
+                                        />
+                                    </div>
+                                    {renderInput('Full Name', 'name', 'text', formData.name)}
+                                    {renderInput('Mobile Number', 'mobile', 'tel', formData.mobile)}
+                                    {renderInput('Email Address', 'email', 'email', formData.email)}
+                                    <div className="md:col-span-2 lg:col-span-2">
+                                        {renderInput('Address', 'address', 'text', formData.address)}
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Section 2: Statutory Information */}
+                            <section>
+                                <h4 className="text-lg font-semibold text-purple-600 mb-4 border-b pb-2">2. Statutory Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {renderInput('SSS Number', 'sss', 'text', formData.sss)}
+                                    {renderInput('TIN Number', 'tin', 'text', formData.tin)}
+                                    {renderInput('HDMF (Pag-Ibig) Number', 'hdmf', 'text', formData.hdmf)}
+                                    {renderInput('Philhealth Number', 'philhealth', 'text', formData.philhealth)}
+                                </div>
+                            </section>
+
+                            {/* Section 3: Job Details */}
+                            <section>
+                                <h4 className="text-lg font-semibold text-purple-600 mb-4 border-b pb-2">3. Job Details</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {renderInput('Hire Date', 'hireDate', 'date', formData.hireDate)}
+                                    {renderInput('Position', 'position', 'text', formData.position)}
+                                    {renderInput('Department', 'department', 'text', formData.department)}
+                                    {renderInput('Reports To (Supervisor Name)', 'reportsTo', 'text', formData.reportsTo)}
+                                    <div>
+                                        <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                                        <select
+                                            name="type"
+                                            id="type"
+                                            value={formData.type}
+                                            onChange={handleChange}
+                                            className="mt-1 block w-full border border-gray-300 rounded-xl shadow-sm p-3 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                                        >
+                                            <option>Full-time</option>
+                                            <option>Part-time</option>
+                                            <option>Contractor</option>
+                                            <option>Intern</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Employment Status</label>
+                                        <select
+                                            name="status"
+                                            id="status"
+                                            value={formData.status}
+                                            onChange={handleChange}
+                                            className="mt-1 block w-full border border-gray-300 rounded-xl shadow-sm p-3 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                                        >
+                                            <option>Active</option>
+                                            <option>Probationary</option>
+                                            <option>On Leave</option>
+                                            <option>NLE</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Section 4: Emergency Contact */}
+                            <section>
+                                <h4 className="text-lg font-semibold text-purple-600 mb-4 border-b pb-2">4. Emergency Contact</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {renderInput('Contact Name', 'emergencyContact.name', 'text', formData.emergencyContact.name)}
+                                    {renderInput('Relationship', 'emergencyContact.relation', 'text', formData.emergencyContact.relation)}
+                                    {renderInput('Contact Mobile', 'emergencyContact.mobile', 'tel', formData.emergencyContact.mobile)}
+                                    {renderInput('Contact Email', 'emergencyContact.email', 'email', formData.emergencyContact.email)}
+                                    <div className="md:col-span-2 lg:col-span-4">
+                                        {renderInput('Contact Address', 'emergencyContact.address', 'text', formData.emergencyContact.address)}
+                                    </div>
+                                </div>
+                            </section>
+
+                        </div>
+                        {/* Modal Footer - Action Buttons */}
+                        <div className="p-6 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50 rounded-b-xl">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-6 py-2 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-6 py-2 bg-purple-600 text-white font-medium rounded-xl shadow-lg hover:bg-purple-700 transition-colors"
+                            >
+                                <FileUp size={18} className="inline mr-2" />
+                                Save Employee
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        );
+      };
+
+      // --- Custom Employee Node Component for Org Chart ---
+      const OrgChartNode = ({ employee, levelClass }) => {
+        const nameParts = employee.name ? employee.name.split(' ') : ['?'];
+        const initials = nameParts.length > 1 ? `${nameParts[0][0]}${nameParts[1][0]}` : nameParts[0][0];
+        const imageUrl = `https://placehold.co/80x80/d1d1d1/000?text=${initials}`;
+
+        return (
+          <div className={`node ${levelClass} ${employee.reports ? 'has-children' : ''}`}>
+            <div className="card">
+              <img src={imageUrl} alt={employee.name} />
+              <div className="name">{employee.name}</div>
+              <div className="position">{employee.position}</div>
+            </div>
+            {/* Recursively render direct reports if they exist */}
+            {employee.reports && employee.reports.length > 0 && (
+              <div className="level mt-10">
+                {employee.reports.map((report) => (
+                  <OrgChartNode key={report.id} employee={report} levelClass={`level-${parseInt(levelClass.split('-')[1]) + 1}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // --- Organization Chart Data (Mapping Sample Data to a Hierarchy) ---
+      // NOTE: This structure is based on the limited data available in the 'employees' state.
+      const ORG_CHART_DATA = {
+        id: 'CEO',
+        name: 'CEO (Placeholder)',
+        position: 'Chief Executive Officer',
+        imageUrl: 'https://placehold.co/80x80/ef4444/fff?text=CEO',
+        reports: [
+          {
+            id: 'EMP1001',
+            name: 'Arabella Chloe',
+            position: 'UI / UX Designer',
+            reports: []
+          },
+          {
+            id: 'EMP1002',
+            name: 'John Doe',
+            position: 'Marcomm Senior Officer',
+            reports: [
+                {
+                    id: 'EMP1004',
+                    name: 'Subordinate A',
+                    position: 'Marketing Assistant',
+                },
+                {
+                    id: 'EMP1005',
+                    name: 'Subordinate B',
+                    position: 'Marketing Coordinator',
+                },
+            ]
+          },
+          {
+            id: 'EMP1003',
+            name: 'Ryan Kim',
+            position: 'Project Manager',
+            reports: []
+          },
+        ]
+      };
+
+      // --- NEW: Organization Content Component ---
+      const OrganizationContent = ({ onMenuClick }) => (
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+              <Header onMenuClick={onMenuClick} />
+              <h1 className="text-3xl font-bold text-gray-800 mt-6 mb-6">Organizational Chart</h1>
+
+              <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 overflow-x-auto">
+                  <div className="org-chart min-w-[700px] lg:min-w-full">
+                      <div className="level level-1">
+                          {/* Root Node: CEO Placeholder */}
+                          <div className="node has-children">
+                            <div className="card">
+                              <img src={ORG_CHART_DATA.imageUrl} alt={ORG_CHART_DATA.name} style={{borderColor: '#ef4444'}}/>
+                              <div className="name">{ORG_CHART_DATA.name}</div>
+                              <div className="position">{ORG_CHART_DATA.position}</div>
+                            </div>
+                            {/* Level 2 Reports Container */}
+                            <div className="level mt-10 flex-col lg:flex-row">
+                                {/* Map Level 2 Reports */}
+                                {ORG_CHART_DATA.reports.map((employee) => (
+                                    <OrgChartNode key={employee.id} employee={employee} levelClass="level-2" />
+                                ))}
+                            </div>
+                          </div>
+                      </div>
+                  </div>
+                  <p className="text-center text-sm text-gray-500 mt-8">Note: The hierarchy is structured based on the available sample data (CEO reports to Arabella, John, and Ryan). This can be customized by changing the ORG_CHART_DATA structure.</p>
+              </div>
+          </main>
+      );
+
+      // --- Placeholder Page Components for navigation ---
+      const PlaceholderPage = ({ title }) => (
+          <main className="flex-1 p-4 sm:p-6 lg:p-8">
+              <div className="bg-white rounded-2xl p-8 shadow-xl text-center">
+                  <h2 className="text-3xl font-bold text-gray-800">{title}</h2>
+                  <p className="mt-4 text-gray-600">This content is a placeholder for the {title} module.</p>
+                  <p className="mt-2 text-sm text-purple-500">Use the Employee tab to see the list feature.</p>
+              </div>
+          </main>
+      );
+
+      // Employee Content Component (Updated for Search and Filters)
+      const EmployeeContent = ({ onMenuClick, employees, addEmployee }) => {
+          const [isModalOpen, setIsModalOpen] = useState(false);
+          const [searchTerm, setSearchTerm] = useState('');
+          const [departmentFilter, setDepartmentFilter] = useState('All Department');
+          const [statusFilter, setStatusFilter] = useState('All Status');
+
+          const DEPARTMENT_OPTIONS = ["All Department", "Operations", "HR", "IT & Compliance", "Business Development", "Finance", "Design", "Marketing"];
+          const STATUS_OPTIONS = ["All Status", "Active", "Inactive", "On Leave", "NLE", "Probationary"];
+
+          const normalize = (text) => String(text || '').toLowerCase().trim();
+
+          const filteredEmployees = employees.filter(employee => {
+              const normalizedSearch = normalize(searchTerm);
+
+              // 1. Search Filter
+              const matchesSearch = normalizedSearch === '' || 
+                  normalize(employee.name).includes(normalizedSearch) ||
+                  normalize(employee.position).includes(normalizedSearch) ||
+                  normalize(employee.department).includes(normalizedSearch);
+              
+              // 2. Department Filter
+              const matchesDepartment = departmentFilter === 'All Department' || normalize(employee.department) === normalize(departmentFilter);
+
+              // 3. Status Filter
+              let statusToMatch = statusFilter;
+              // Normalize the internal department names if necessary (e.g., if 'IT & Compliance' is stored differently)
+              if (statusToMatch === 'All Status') statusToMatch = '';
+              const matchesStatus = statusToMatch === '' || normalize(employee.status) === normalize(statusToMatch);
+              
+              return matchesSearch && matchesDepartment && matchesStatus;
+          });
+
+          return (
+              <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+                  <Header onMenuClick={onMenuClick} />
+                  <div className="mt-6">
+                      
+                      {/* Top Header Row (Title and Add Button) */}
+                      <div className="flex justify-between items-center mb-6">
+                          <h1 className="text-3xl font-bold text-gray-800">Employee Directory ({filteredEmployees.length} / {employees.length})</h1>
+                          <button
+                              onClick={() => setIsModalOpen(true)}
+                              className="flex items-center px-4 py-2 bg-purple-600 text-white font-medium rounded-xl shadow-lg hover:bg-purple-700 transition-colors transform hover:scale-[1.02]"
+                          >
+                              <UserPlus size={20} className="mr-2" />
+                              Add Employee
+                          </button>
+                      </div>
+
+                      {/* Search and Filter Bar */}
+                      <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-center border border-gray-100">
+                          
+                          {/* Search Input */}
+                          <div className="relative flex-1 min-w-[200px]">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                              <input
+                                  type="text"
+                                  placeholder="Search by Name, Position, or ID..."
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value)}
+                                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 transition-all"
+                              />
+                          </div>
+
+                          {/* Department Filter */}
+                          <div className="flex-shrink-0 w-full md:w-56">
+                              <label htmlFor="department-filter" className="sr-only">Filter by Department</label>
+                              <select
+                                  id="department-filter"
+                                  value={departmentFilter}
+                                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-xl shadow-sm p-2 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                              >
+                                  {DEPARTMENT_OPTIONS.map(dept => (
+                                      <option key={dept} value={dept}>{dept}</option>
+                                  ))}
+                              </select>
+                          </div>
+
+                          {/* Status Filter */}
+                          <div className="flex-shrink-0 w-full md:w-48">
+                              <label htmlFor="status-filter" className="sr-only">Filter by Status</label>
+                              <select
+                                  id="status-filter"
+                                  value={statusFilter}
+                                  onChange={(e) => setStatusFilter(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-xl shadow-sm p-2 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                              >
+                                  {STATUS_OPTIONS.map(status => (
+                                      <option key={status} value={status}>{status}</option>
+                                  ))}
+                              </select>
+                          </div>
+                      </div>
+
+                      {/* Employee Cards Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {filteredEmployees.map(employee => (
+                              <EmployeeCard key={employee.id} employee={employee} />
+                          ))}
+                          {filteredEmployees.length === 0 && (
+                              <div className="col-span-full text-center py-10 bg-white rounded-xl text-gray-500">
+                                  No employees match the current search or filter criteria.
+                              </div>
+                          )}
+                      </div>
+                  </div>
+                  <AddEmployeeModal
+                      isOpen={isModalOpen}
+                      onClose={() => setIsModalOpen(false)}
+                      onAddEmployee={addEmployee}
+                  />
+              </main>
+          );
+      };
+      
+      // --- Settings Sub-Components ---
+      
+      // 1. Profile Tab Content
+      const ProfileTab = () => {
+          // Mock User Data for display
+          const mockUser = {
+              firstName: 'Jayzce',
+              lastName: 'Ze',
+              email: 'jayzce@gmail.com',
+              role: 'Administrator',
+              department: 'HR',
+              position: 'HR Manager'
+          };
+          
+          const [formData, setFormData] = useState({
+              firstName: mockUser.firstName,
+              lastName: mockUser.lastName,
+              department: mockUser.department,
+              position: mockUser.position
+          });
+
+          const DEPARTMENT_OPTIONS = ["Select department", "Operations", "HR", "IT & Compliance", "Business Development", "Finance", "Design", "Marketing"];
+
+          const handleChange = (e) => {
+              setFormData({...formData, [e.target.name]: e.target.value });
+          };
+
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              console.log("Profile Updated:", formData);
+              // In a real app, send update request here
+          };
+          
+          return (
+              <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 mt-6">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
+                      <User size={20} className="mr-3 text-purple-600" />
+                      Profile Information
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 border-b pb-4">Update your personal information and account details</p>
+
+                  <div className="flex items-center space-x-4 p-4 mb-8 bg-purple-50 rounded-xl border border-purple-200">
+                      <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                          {mockUser.firstName[0]}
+                      </div>
+                      <div>
+                          <p className="font-semibold text-gray-800">{mockUser.email}</p>
+                          <p className="text-xs text-gray-600">{mockUser.role}</p>
+                      </div>
+                  </div>
+                  
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                              <input 
+                                  type="text" 
+                                  name="firstName"
+                                  value={formData.firstName}
+                                  onChange={handleChange}
+                                  placeholder="Enter your first name"
+                                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                              <input 
+                                  type="text" 
+                                  name="lastName"
+                                  value={formData.lastName}
+                                  onChange={handleChange}
+                                  placeholder="Enter your last name"
+                                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                          </div>
+                          
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                              <select 
+                                  name="department"
+                                  value={formData.department}
+                                  onChange={handleChange}
+                                  className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                              >
+                                  {DEPARTMENT_OPTIONS.map(dept => (
+                                      <option key={dept} value={dept}>{dept}</option>
+                                  ))}
+                              </select>
+                          </div>
+                          
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                              <input 
+                                  type="text" 
+                                  name="position"
+                                  value={formData.position}
+                                  onChange={handleChange}
+                                  placeholder="Enter your position"
+                                  className="w-full border border-gray-300 rounded-xl p-3 focus:ring-purple-500 focus:border-purple-500"
+                              />
+                          </div>
+                      </div>
+                      
+                      <button 
+                          type="submit"
+                          className="w-full py-3 px-4 bg-purple-600 text-white font-medium rounded-xl shadow-lg hover:bg-purple-700 transition-colors mt-6"
+                      >
+                          Update Profile
+                      </button>
+                  </form>
+              </div>
+          );
+      };
+      
+      // Toggle Switch component for Notifications
+      const ToggleSwitch = ({ label, description, checked, onChange }) => (
+          <label className="flex items-center justify-between py-4 border-b border-gray-100 cursor-pointer">
+              <div>
+                  <p className="font-medium text-gray-800">{label}</p>
+                  <p className="text-sm text-gray-500">{description}</p>
+              </div>
+              <div className="toggle-switch relative inline-block w-12 h-6 flex-shrink-0 ml-4">
+                  <input type="checkbox" checked={checked} onChange={onChange} className="opacity-0 w-0 h-0" />
+                  <span className="slider absolute inset-0 rounded-full before:absolute before:content-[''] before:h-5 before:w-5 before:left-[2px] before:bottom-[2px] before:rounded-full"></span>
+              </div>
+          </label>
+      );
+      
+      // 2. Notifications Tab Content
+      const NotificationsTab = () => {
+          const [settings, setSettings] = useState({
+              email: true,
+              leaveRequest: true,
+              payroll: true,
+              systemMaintenance: false
+          });
+
+          const handleToggle = (key) => {
+              setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+          };
+
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              console.log("Notification Settings Saved:", settings);
+              // In a real app, send update request here
+          };
+
+          return (
+              <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 mt-6">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
+                      <Bell size={20} className="mr-3 text-purple-600" />
+                      Notification Preferences
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 border-b pb-4">Configure how you want to receive notifications</p>
+
+                  <form onSubmit={handleSubmit} className="space-y-2">
+                      <ToggleSwitch 
+                          label="Email Notifications" 
+                          description="Receive general notifications via email"
+                          checked={settings.email}
+                          onChange={() => handleToggle('email')}
+                      />
+                      <ToggleSwitch 
+                          label="Leave Request Notifications" 
+                          description="Get notified about leave request updates"
+                          checked={settings.leaveRequest}
+                          onChange={() => handleToggle('leaveRequest')}
+                      />
+                      <ToggleSwitch 
+                          label="Payroll Notifications" 
+                          description="Receive notifications about payroll processing"
+                          checked={settings.payroll}
+                          onChange={() => handleToggle('payroll')}
+                      />
+                      <ToggleSwitch 
+                          label="System Maintenance" 
+                          description="Get notified about system maintenance and updates"
+                          checked={settings.systemMaintenance}
+                          onChange={() => handleToggle('systemMaintenance')}
+                      />
+
+                      <button 
+                          type="submit"
+                          className="w-full py-3 px-4 bg-purple-600 text-white font-medium rounded-xl shadow-lg hover:bg-purple-700 transition-colors mt-8"
+                      >
+                          Save Notification Settings
+                      </button>
+                  </form>
+              </div>
+          );
+      };
+
+      // 3. Company Tab Content
+      const CompanyTab = () => {
+          const [settings, setSettings] = useState({
+              companyName: 'CiD',
+              workingHours: '8 hours',
+              timezone: 'Asia/Manila (PHT)',
+              currency: 'Philippine Peso (PHP)'
+          });
+
+          const handleChange = (e) => {
+              setSettings({...settings, [e.target.name]: e.target.value });
+          };
+
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              console.log("Company Settings Saved:", settings);
+              // In a real app, send update request here
+          };
+
+          return (
+              <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 mt-6">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
+                      <Briefcase size={20} className="mr-3 text-purple-600" />
+                      Company Settings
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 border-b pb-4">Configure company-wide settings and preferences</p>
+                  
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                          <input 
+                              type="text" 
+                              name="companyName"
+                              value={settings.companyName}
+                              onChange={handleChange}
+                              className="w-full border border-gray-300 rounded-xl p-3 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Working Hours per Day</label>
+                              <select 
+                                  name="workingHours"
+                                  value={settings.workingHours}
+                                  onChange={handleChange}
+                                  className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                              >
+                                  <option>6 hours</option>
+                                  <option>7 hours</option>
+                                  <option>8 hours</option>
+                                  <option>9 hours</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                              <select 
+                                  name="timezone"
+                                  value={settings.timezone}
+                                  onChange={handleChange}
+                                  className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                              >
+                                  <option>Asia/Manila (PHT)</option>
+                                  <option>America/New_York (EST)</option>
+                                  <option>Europe/London (GMT)</option>
+                              </select>
+                          </div>
+                      </div>
+                      
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                          <select 
+                              name="currency"
+                              value={settings.currency}
+                              onChange={handleChange}
+                              className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:ring-purple-500 focus:border-purple-500 appearance-none pr-8 cursor-pointer"
+                          >
+                              <option>Philippine Peso (PHP)</option>
+                              <option>US Dollar (USD)</option>
+                              <option>Euro (EUR)</option>
+                          </select>
+                      </div>
+
+                      <button 
+                          type="submit"
+                          className="w-full py-3 px-4 bg-purple-600 text-white font-medium rounded-xl shadow-lg hover:bg-purple-700 transition-colors mt-6"
+                      >
+                          Save Company Settings
+                      </button>
+                  </form>
+              </div>
+          );
+      };
+      
+      // 4. System Tab Content
+      const SystemTab = () => {
+          // Mock data for system status and stats
+          const systemData = {
+              status: 'All systems operational',
+              databaseStatus: 'Connected and healthy',
+              totalEmployees: 350,
+              activeLeaveRequests: 5,
+              attendanceRecords: 15000,
+              payrollEntries: 350,
+              version: '1.0.0',
+              lastUpdated: '9/29/2025'
+          };
+          
+          const StatusPill = ({ label, color }) => (
+              <div className="flex items-center space-x-2">
+                  <span className="w-3 h-3 rounded-full" style={{backgroundColor: color}}></span>
+                  <p className="text-gray-700">{label}</p>
+              </div>
+          );
+          
+          const StatItem = ({ label, value }) => (
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                  <p className="text-sm text-gray-500">{label}:</p>
+                  <p className="text-sm font-semibold text-gray-800">{value}</p>
+              </div>
+          );
+
+          return (
+              <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-100 mt-6">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-4">
+                      <Database size={20} className="mr-3 text-purple-600" />
+                      System Information
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 border-b pb-4">View system status and database information</p>
+
+                  {/* System Status Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                          <p className="font-medium text-gray-800 mb-2">System Status</p>
+                          <StatusPill label={systemData.status} color="#10b981" />
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                          <p className="font-medium text-gray-800 mb-2">Database Status</p>
+                          <StatusPill label={systemData.databaseStatus} color="#10b981" />
+                      </div>
+                  </div>
+
+                  {/* Database Statistics */}
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">Database Statistics</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2 mb-8">
+                      <StatItem label="Total Employees" value={systemData.totalEmployees} />
+                      <StatItem label="Active Leave Requests" value={systemData.activeLeaveRequests} />
+                      <StatItem label="Attendance Records" value={systemData.attendanceRecords.toLocaleString()} />
+                      <StatItem label="Payroll Entries" value={systemData.payrollEntries} />
+                  </div>
+
+                  {/* Version Information */}
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">Version Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
+                      <StatItem label="CiDCore Version" value={systemData.version} />
+                      <StatItem label="Last Updated" value={systemData.lastUpdated} />
+                  </div>
+
+              </div>
+          );
+      };
+      
+      // --- Main Settings Page Component ---
+      const SettingsContent = ({ onMenuClick }) => {
+          const [activeTab, setActiveTab] = useState('Profile');
+          
+          const tabs = [
+              { name: 'Profile', icon: User, component: ProfileTab },
+              { name: 'Notifications', icon: Bell, component: NotificationsTab },
+              { name: 'Company', icon: Briefcase, component: CompanyTab },
+              { name: 'System', icon: Database, component: SystemTab },
+          ];
+
+          const ActiveComponent = tabs.find(tab => tab.name === activeTab).component;
+
+          return (
+              <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+                  <Header onMenuClick={onMenuClick} />
+                  
+                  <div className="mt-6 text-center"> {/* ADDED text-center HERE */}
+                      <div className="flex items-center space-x-3 text-3xl font-bold text-gray-800 mb-2 justify-center"> {/* ADDED justify-center HERE */}
+                          <Settings size={32} className="text-purple-600"/> {/* CHANGED from Shield to Settings */}
+                          <h1>Settings</h1>
+                      </div>
+                      <p className="text-gray-500 mb-8">Manage your account and system preferences</p>
+
+                      {/* Tab Navigation */}
+                      <div className="flex space-x-2 border-b border-gray-200 overflow-x-auto pb-1 -mx-2 sm:mx-0 justify-center"> {/* ADDED justify-center HERE */}
+                          {tabs.map((tab) => (
+                              <button
+                                  key={tab.name}
+                                  onClick={() => setActiveTab(tab.name)}
+                                  className={`flex items-center px-4 py-2 font-medium text-sm rounded-t-lg transition-colors whitespace-nowrap ${
+                                      activeTab === tab.name
+                                          ? 'text-purple-600 border-b-2 border-purple-600 bg-gray-50'
+                                          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                  }`}
+                              >
+                                  <tab.icon size={18} className="mr-2" />
+                                  {tab.name}
+                              </button>
+                          ))}
+                      </div>
+
+                      {/* Tab Content (Wrapper uses text-left to override the parent centering) */}
+                      <div className="text-left">
+                          <ActiveComponent />
+                      </div>
+                  </div>
+              </main>
+          );
+      };
+      
+      // --- End of Settings Components ---
+
+      // --- Main Application Wrapper Component ---
+
+      const MainApp = () => {
+          const initialEmployees = [
+              {
+                  id: 'EMP1001',
+                  name: 'Arabella Chloe',
+                  address: '123 Tech Lane, CA',
+                  mobile: '555-1234',
+                  email: 'arabella@company.com',
+                  position: 'UI / UX Designer',
+                  department: 'Design',
+                  type: 'Full-time',
+                  status: 'Active',
+                  reportsTo: 'John Doe',
+                  hireDate: '2023-01-15',
+                  emergencyContact: { name: 'John Doe', address: '123 Tech Lane', mobile: '555-1235', email: 'jd@home.com', relation: 'Father' },
+              },
+              {
+                  id: 'EMP1002',
+                  name: 'John Doe',
+                  address: '456 Business Blvd, NY',
+                  mobile: '555-5678',
+                  email: 'john.doe@company.com',
+                  position: 'Marcomm Senior Officer',
+                  department: 'Marketing',
+                  type: 'Full-time',
+                  status: 'On Leave',
+                  reportsTo: 'Jane Smith',
+                  hireDate: '2022-05-20',
+                  emergencyContact: { name: 'Jane Doe', address: '456 Business Blvd', mobile: '555-5679', email: 'jane@home.com', relation: 'Wife' },
+              },
+              {
+                  id: 'EMP1003',
+                  name: 'Ryan Kim',
+                  address: '789 Project St, TX',
+                  mobile: '555-9012',
+                  email: 'ryan.kim@company.com',
+                  position: 'Project Manager',
+                  department: 'Operations',
+                  type: 'Contractor',
+                  status: 'Probationary',
+                  reportsTo: 'John Doe',
+                  hireDate: '2024-03-01',
+                  emergencyContact: { name: 'Sarah Kim', address: '789 Project St', mobile: '555-9013', email: 'sarah@home.com', relation: 'Mother' },
+              },
+          ];
+
+          // Initialize custom hook for persistence (using hardcoded sheet name)
+          const { 
+              data: employees, 
+              loading: employeesLoading, 
+              error: employeesError, 
+              writeData: saveEmployeeToSheet, 
+              fetchData: fetchEmployees 
+          } = useGoogleSheet(initialEmployees, 'Employees', SCRIPT_URL);
+
+          const [isLoggedIn, setIsLoggedIn] = useState(false);
+          const [currentPage, setCurrentPage] = useState('dashboard');
+          const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+          
+          useEffect(() => {
+              // Attempt to fetch data on initial load
+              // NOTE: Fetching will only update the console log/error due to CORS restrictions.
+              // We rely on the initialEmployees mock data for the UI to function.
+              fetchEmployees();
+          }, []);
+
+
+          const handleLogin = () => {
+              setIsLoggedIn(true);
+          };
+
+          const handleLogout = () => {
+              setIsLoggedIn(false);
+              setCurrentPage('dashboard');
+          };
+
+          const handleAddEmployee = (newEmployeeData) => {
+              // 1. Save to Google Sheet (Async, handles internal state update upon success)
+              saveEmployeeToSheet(newEmployeeData);
+              // 2. Navigate
+              setCurrentPage('employee');
+          };
+
+          // Function to render the correct content based on the current page
+          const renderPageContent = () => {
+              if (employeesLoading) {
+                  return (
+                      <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+                          <p className="text-xl font-semibold text-purple-600">Loading Employee Data...</p>
+                      </main>
+                  );
+              }
+
+              if (employeesError) {
+                  return (
+                      <main className="flex-1 p-4 sm:p-6 lg:p-8">
+                          <Header onMenuClick={() => setIsSidebarOpen(true)} />
+                          <div className="text-center mt-20 p-8 bg-red-100 border border-red-400 text-red-700 rounded-xl">
+                              <h2 className="text-2xl font-bold mb-4">Data Connection Error</h2>
+                              <p>{employeesError}</p>
+                              <p className="mt-4">Please ensure your SCRIPT_URL is correct and deployed as a Web App (execute as me, access by anyone/anonymous).</p>
+                          </div>
+                      </main>
+                  );
+              }
+              
+              switch (currentPage) {
+                  case 'dashboard':
+                      return <DashboardContent onMenuClick={() => setIsSidebarOpen(true)} />;
+                  case 'employee':
+                      return <EmployeeContent onMenuClick={() => setIsSidebarOpen(true)} employees={employees} addEmployee={handleAddEmployee} />;
+                  case 'time-attendance':
+                      return <TimeAttendanceContent onMenuClick={() => setIsSidebarOpen(true)} />; // NOW USES NEW COMPONENT
+                  case 'task':
+                      return <PlaceholderPage title="Task Management System" />;
+                  case 'payroll':
+                      return <PlaceholderPage title="Payroll Processing" />;
+                  case 'performance':
+                      return <PlaceholderPage title="Performance Review & KPIs" />;
+                  case 'report':
+                      return <PlaceholderPage title="HR Reports & Analytics" />;
+                  case 'organization':
+                      return <OrganizationContent onMenuClick={() => setIsSidebarOpen(true)} />; // UPDATED to use new component
+                  case 'settings':
+                      return <SettingsContent onMenuClick={() => setIsSidebarOpen(true)} />; // NEW SETTINGS COMPONENT
+                  case 'logout':
+                      handleLogout();
+                      return null;
+                  default:
+                      return <DashboardContent onMenuClick={() => setIsSidebarOpen(true)} />;
+              }
+          };
+
+          if (!isLoggedIn) {
+              return <LoginPage onLogin={handleLogin} />;
+          }
+
+          return (
+              <div className="flex h-screen overflow-hidden font-sans bg-gray-100">
+                  <Sidebar
+                      isOpen={isSidebarOpen}
+                      onClose={() => setIsSidebarOpen(false)}
+                      currentPage={currentPage}
+                      setCurrentPage={setCurrentPage}
+                  />
+                  <div className="flex flex-col flex-1 min-w-0">
+                      {renderPageContent()}
+                  </div>
+              </div>
+          );
+      };
+
+      const App = MainApp;
+
+      // Mount the application
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+
+      // --- End of HRIS_Dashboard.jsx Content ---
+    </script>
+</body>
+</html>
